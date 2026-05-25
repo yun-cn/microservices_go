@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package loan.v1;
+
+option go_package = "github.com/yun-cn/loan-engine/api/proto/loan/v1;loanv1";
+
+enum CalculationMethod {
+  CALCULATION_METHOD_UNSPECIFIED = 0;  // defaults to PMT
+  CALCULATION_METHOD_PMT = 1;          // equal monthly payment (annuity)
+}
+
+service LoanCalculator {
+  rpc CalculatePayment(CalculatePaymentRequest) returns (CalculatePaymentResponse);
+}
+
+message CalculatePaymentRequest {
+  double loan_amount = 1;
+  double annual_interest_rate = 2;
+  int32 num_payments = 3;
+  CalculationMethod calculation_method = 4;
+}
+
+message CalculatePaymentResponse{
+  double monthly_payment = 1;
+  // calculation_id is the UUID for this calculation (for audit trail and tracking)
+  // Using UUID instead of sequential ID for:
+  // - Distributed system compatibility (no lock contention)
+  // - Security (prevents business volume exposure)
+  string calculation_id = 2;
+}
+

@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loan-engine
+  labels:
+    app: loan-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loan-engine
+  template:
+    metadata:
+      labels:
+        app: loan-engine
+    spec:
+      containers:
+        - name: loan-engine
+          image: loan-engine:latest
+          ports:
+            - containerPort: 50051
+              name: grpc
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: PORT
+            - name: ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: ENV
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: loan-calculator-secret
+                  key: db-username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: loan-calculator-secret
+                  key: db-password
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          readinessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loan-engine-service
+  labels:
+    app: loan-engine
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50051
+      targetPort: 50051
+      protocol: TCP
+      name: grpc
+  selector:
+    app: loan-engine
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration
+  labels:
+    app: loan-engine
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    metadata:
+      labels:
+        app: loan-engine
+        component: migration
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:18.0-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres-service -U postgres; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+      containers:
+        - name: migration
+          image: loan-engine:latest
+          command:
+            - sh
+            - -c
+            - |
+              export DB_DSN="host=$DB_HOST port=$DB_PORT user=$DB_USER password=$DB_PASSWORD dbname=$DB_NAME sslmode=disable"
+              goose -dir /app/db/migrations postgres "$DB_DSN" up
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: loan-calculator-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: loan-calculator-secret
+                  key: db-username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: loan-calculator-secret
+                  key: db-password
+

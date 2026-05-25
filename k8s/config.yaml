@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loan-calculator-config
+  labels:
+    app: loan-calculator
+data:
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "loan_engine"
+  PORT: "50051"
+  ENV: "production"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loan-calculator-secret
+  labels:
+    app: loan-calculator
+type: Opaque
+stringData:
+  db-username: loan_engine_app
+  db-password: loan_engine_app
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb
+  labels:
+    app: postgres
+data:
+  01_init.sql: |
+    CREATE USER loan_engine_app WITH PASSWORD 'loan_engine_app';
+    GRANT CONNECT ON DATABASE loan_engine TO loan_engine_app;
+    GRANT USAGE ON SCHEMA public TO loan_engine_app;
