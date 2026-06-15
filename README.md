@@ -1,7 +1,3 @@
-# Loan Engine
-
-A gRPC service that calculates monthly loan repayments using the PMT formula, built with Go and PostgreSQL 18.
-
 ## Architecture
 
 ```
